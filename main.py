@@ -6,6 +6,7 @@ import logging
 from question_generator import generate_question
 from shorts_creator import create_short
 from shorts_uploader import upload_short, check_and_reply_comments
+from telegram_notify import notify_upload_success, notify_upload_failed, notify_bot_started
 
 logging.basicConfig(
     level=logging.INFO,
@@ -40,7 +41,9 @@ def run_upload():
         qdata = generate_question()
         log.info(f"✅ [{qdata['category']}] {qdata['question'][:60]}...")
     except Exception as e:
-        log.error(f"❌ Question failed: {e}"); return
+        log.error(f"❌ Question failed: {e}")
+        notify_upload_failed(f"Question generation failed: {e}")
+        return
 
     # 2 — Create Short
     path = os.path.join(VIDEOS_DIR, f"short_{n}.mp4")
@@ -48,15 +51,20 @@ def run_upload():
         log.info("🎬 Creating Short (1080×1920)...")
         create_short(qdata, path)
     except Exception as e:
-        log.error(f"❌ Video failed: {e}"); return
+        log.error(f"❌ Video failed: {e}")
+        notify_upload_failed(f"Video creation failed: {e}")
+        return
 
     # 3 — Upload
     try:
         log.info("📤 Uploading to YouTube...")
         vid = upload_short(path, qdata, n)
         log.info(f"🎉 Live at https://youtu.be/{vid}")
+        notify_upload_success(vid, qdata, n)
     except Exception as e:
-        log.error(f"❌ Upload failed: {e}"); return
+        log.error(f"❌ Upload failed: {e}")
+        notify_upload_failed(f"Upload failed: {e}")
+        return
 
     # 4 — Cleanup
     try: os.remove(path)
@@ -78,6 +86,8 @@ def main():
     log.info(f"📅 {SHORTS_PER_DAY} Shorts/day | every {UPLOAD_EVERY_HOURS} hours")
     log.info(f"💬 Comment check every {COMMENT_CHECK_EVERY_MIN} mins")
     log.info("="*55)
+
+    notify_bot_started()
 
     # Run immediately
     run_upload()
